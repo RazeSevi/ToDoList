@@ -1,11 +1,9 @@
 import 'dart:convert'; 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/colors.dart';
 import '../widgets/todo_items.dart';
 import '../model/todo.dart';
 import '../helper/filesystem.dart';
-
 
 class Home extends StatefulWidget{
   const Home ({Key?key}) : super(key: key);
@@ -16,7 +14,6 @@ class Home extends StatefulWidget{
 
 class _HomeState extends State<Home> {
   List<ToDo> todoList = [];
-  late SharedPreferences sharedPreferences;
   List<ToDo> _foundItem = [];
   final _todoController = TextEditingController();
   double addSize = 50;
@@ -26,9 +23,6 @@ class _HomeState extends State<Home> {
   @override
   void initState() {
     loadState();
-    initSaredPreferences() async {
-      sharedPreferences = await SharedPreferences.getInstance();
-    }
     super.initState();
   }
 
@@ -39,45 +33,120 @@ class _HomeState extends State<Home> {
       appBar: _buildAppBar(),
       body: Stack(
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 20,
-              vertical: 15
-            ),
-            child: Column(
-              children: [
-                searchBox(),
-                Expanded(
-                  child: ListView(
-                    children: [
-                      Container(
-                        margin: const EdgeInsets.only(
-                          top: 50,
-                          bottom: 20
-                        ),
-                        child: const Text(
-                          "All Activities",
-                          style: TextStyle(
-                            fontSize: 30,
-                            fontWeight: FontWeight.w500
-                          ),
-                        ),
-                      ),
+          showItems(),
+          addItems(),
+        ],
+      ),
+    );
+  }
 
-                      for (ToDo todos in _foundItem.reversed)
-                        ToDoItem(
-                          todo: todos,
-                          onToDoChanged: _handleToDoChange,
-                          onDeleteItem: _deleteToDoItem,
-                        )
-                    ],
+  void _handleToDoChange(ToDo todo){
+    todo.isDone = !todo.isDone;
+    savedItems();
+    setState(() {
+    });
+  }
+
+  void _deleteToDoItem(String id){
+    todoList.removeWhere((i) => i.id == id);
+    savedItems();
+    setState(() {
+      todoList = todoList;
+    });
+  }
+
+  void _addToDoItem(String toDo){
+    if(toDo == "") return;
+    setState(() {
+      todoList.add(ToDo(id: DateTime.now().millisecondsSinceEpoch.toString(),todoText: toDo));
+    });
+    _todoController.clear();
+  }
+
+  void _searchFilter(String searchString){
+    List<ToDo> result = [];
+    if(searchString.isEmpty){
+      result = todoList;
+    }else{
+      result = todoList
+        .where((item) => item.todoText!
+          .toLowerCase()
+          .contains(searchString.toLowerCase()))
+        .toList();
+    }
+    setState(() {
+      _foundItem = result;
+    });
+  }
+
+  void savedItems(){
+    String jsonTodo = jsonEncode(todoList);
+    file.write(jsonTodo);
+  }
+
+  void loadState() async {
+    await file.setup();
+
+    String json = file.read();
+
+    if(json.isEmpty) return;
+    if(!(json.startsWith('[') && json.endsWith(']'))) return;
+
+    // JSON -> ToDo
+    List<dynamic> decodedJson = jsonDecode(json);
+    List<ToDo> todos = [];
+    decodedJson.forEach((todoJsonItem) => todos.add(ToDo.fromJson(todoJsonItem)));
+
+    setState(() {
+      todoList = todos;
+      _foundItem = todoList;
+    });
+  }
+
+  Widget showItems(){
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 20,
+        vertical: 15
+      ),
+      child: Column(
+        children: [
+          searchBox(),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.only(bottom: 70),
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(
+                    top: 50,
+                    bottom: 20
+                  ),
+                  child: const Text(
+                    "All Activities",
+                    style: TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w500
+                    ),
                   ),
                 ),
+
+                for (ToDo todos in _foundItem.reversed)
+                  ToDoItem(
+                    todo: todos,
+                    onToDoChanged: _handleToDoChange,
+                    onDeleteItem: _deleteToDoItem,
+                  )
               ],
             ),
           ),
-          Align(
-            alignment: Alignment.bottomCenter,
+        ],
+      ),
+    );
+  }
+
+  Widget addItems(){
+    return Align(
+      alignment: Alignment.bottomCenter,
             child: Row(
               children: [
                 Expanded(
@@ -134,73 +203,7 @@ class _HomeState extends State<Home> {
                 ),
               ],
             ),
-          ),
-        ],
-      ),
     );
-  }
-
-  void _handleToDoChange(ToDo todo){
-    todo.isDone = !todo.isDone;
-    savedItems();
-    setState(() {
-    });
-  }
-
-  void _deleteToDoItem(String id){
-    todoList.removeWhere((i) => i.id == id);
-    savedItems();
-    setState(() {
-      todoList = todoList;
-    });
-  }
-
-  void _addToDoItem(String toDo){
-    if(toDo == "") return;
-    setState(() {
-      todoList.add(ToDo(id: DateTime.now().millisecondsSinceEpoch.toString(),todoText: toDo));
-    });
-    _todoController.clear();
-  }
-
-  void _searchFilter(String searchString){
-    List<ToDo> result = [];
-    if(searchString.isEmpty){
-      result = todoList;
-    }else{
-      result = todoList
-        .where((item) => item.todoText!
-          .toLowerCase()
-          .contains(searchString.toLowerCase()))
-        .toList();
-    }
-    setState(() {
-      _foundItem = result;
-    });
-  }
-  //TODO: Fix jsonEncode save items
-  void savedItems(){
-    String jsonTodo = jsonEncode(todoList);
-    file.write(jsonTodo);
-  }
-
-  void loadState() async {
-    await file.setup();
-
-    String json = file.read();
-
-    if(json.isEmpty) return;
-    if(!(json.startsWith('[') && json.endsWith(']'))) return;
-
-    // JSON -> ToDo
-    List<dynamic> decodedJson = jsonDecode(json);
-    List<ToDo> todos = [];
-    decodedJson.forEach((todoJsonItem) => todos.add(ToDo.fromJson(todoJsonItem)));
-
-    setState(() {
-      todoList = todos;
-      _foundItem = todoList;
-    });
   }
 
   Widget searchBox() {
@@ -247,7 +250,7 @@ class _HomeState extends State<Home> {
             width: 40,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(20.0),
-              child: Image.asset('assets/images/img.png')
+              child: Image.asset('assets/images/icon.png')
             ),
           ),
         ],

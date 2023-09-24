@@ -28,12 +28,10 @@ class FileSystem {
 
   String read() {
     String data = _localFile.readAsStringSync();
-    print(data);
     return data;
   }
 
   void write(String data)  {
     _localFile.writeAsString(data);
-    print(_localFile);
   }
 }
